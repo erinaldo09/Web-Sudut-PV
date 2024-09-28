@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perhitungan Sudut Kemiringan Panel Surya dengan Cuaca Real-Time</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Chart.js CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <img src="logo.jpeg" alt="Logo"> <!-- Tambahkan logo di sini -->
+        Perhitungan Sudut Kemiringan Panel Surya
+        <nav>
+            <a href="kalkulator.html">Services</a>
+            <a href="contact.html">Contact</a>
+            <a href="#">About</a>
+            <a href="profil.html">Profil</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <label for="latitude">Lintang (Latitude) dalam derajat:</label>
+        <input type="number" id="latitude" step="any" required>
+        
+        <label for="longitude">Bujur (Longitude) dalam derajat:</label>
+        <input type="number" id="longitude" step="any" required>
+        
+        <label for="date">Tanggal dan Waktu (YYYY-MM-DDTHH:MM:SS, UTC):</label>
+        <input type="datetime-local" id="date" required>
+        
+        <label for="start-date">Tanggal Mulai (YYYY-MM-DD):</label>
+        <input type="date" id="start-date" required>
+        
+        <label for="end-date">Tanggal Akhir (YYYY-MM-DD):</label>
+        <input type="date" id="end-date" required>
+        
+        <button onclick="calculateTiltAngle()">Hitung Sudut Kemiringan</button>
+
+        <!-- Cuaca Real-Time -->
+        <div class="weather-container">
+            <h3>Cuaca Terkini</h3>
+            <p id="weather-description">Loading...</p>
+            <p id="weather-temp"></p>
+            <p id="weather-wind"></p>
+        </div>
+
+        <div id="result"></div>
+        
+        <div class="chart-container">
+            <canvas id="tiltChart"></canvas>
+        </div>
+        
+        <div id="map" style="height: 400px;"></div>
+        
+        <div id="angle-visualization">
+            <canvas id="protractorCanvas" width="500" height="500"></canvas>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- Leaflet Control Geocoder -->
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+    <script>
+        let map;
+        let marker;
+        const apiKey = '0d12913fe81e707837e9942e8ceb07ac';  // Ganti dengan API Key OpenWeatherMap Anda
+
+        function calculateTiltAngle() {
+            const latitude = parseFloat(document.getElementById('latitude').value);
+            const longitude = parseFloat(document.getElementById('longitude').value);
+            const dateStr = document.getElementById('date').value;
+            const startDateStr = document.getElementById('start-date').value;
+            const endDateStr = document.getElementById('end-date').value;
+
+            if (isNaN(latitude) || isNaN(longitude) || !dateStr || !startDateStr || !endDateStr) {
+                alert('Harap masukkan semua data dengan benar.');
+                return;
+            }
+
+            const date = new Date(dateStr);
+
+            // Hitung sudut kemiringan
+            const solarElevation = calculateSolarElevation(latitude, longitude, date);
+            const originalTiltAngle = (90 - solarElevation) / 2;
+
+            // Hitung rata-rata sudut kemiringan per bulan
+            const averageMonthlyTiltAngle = calculateAverageMonthlyTiltAngle(latitude, longitude, startDateStr, endDateStr);
+
+            // Tentukan arah panel surya secara otomatis
+            const orientation = determinePanelOrientation(latitude);
+
+            document.getElementById('result').innerHTML = `
+                Sudut kemiringan panel surya pada ${dateStr} adalah: ${originalTiltAngle.toFixed(2)} derajat<br>
+                Rata-rata sudut kemiringan per bulan antara ${startDateStr} dan ${endDateStr} adalah: ${averageMonthlyTiltAngle.toFixed(2)} derajat<br>
+                Panel surya menghadap ke: ${orientation}
+            `;
+
+            // Panggil API cuaca berdasarkan lokasi
+            fetchWeather(latitude, longitude, originalTiltAngle);
+
+            // Tampilkan grafik kemiringan
+            showTiltChart(startDateStr, endDateStr, latitude, longitude);
+
+            // Tampilkan peta dengan titik lokasi
+            showMap(latitude, longitude);
+        }
+
+        function fetchWeather(latitude, longitude, originalTiltAngle) {
+            const apiUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`;
+
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    const weatherDescription = data.weather[0].description;
+                    const temperature = data.main.temp;
+                    const windSpeed = data.wind.speed;
+
+                    // Tampilkan data cuaca di elemen HTML
+                    document.getElementById('weather-description').innerText = `Kondisi: ${weatherDescription}`;
+                    document.getElementById('weather-temp').innerText = `Suhu: ${temperature}°C`;
+                    document.getElementById('weather-wind').innerText = `Kecepatan Angin: ${windSpeed} m/s`;
+
+                    // Sesuaikan perhitungan berdasarkan cuaca
+                    adjustTiltBasedOnWeather(windSpeed, temperature, originalTiltAngle);
+                })
+                .catch(error => console.error('Error fetching weather data:', error));
+        }
+
+        function adjustTiltBasedOnWeather(windSpeed, temperature, originalTiltAngle) {
+            let adjustmentFactor = 0;
+            let analysisMessage = "";
+
+            if (windSpeed > 10) {
+                adjustmentFactor -= 5;  // Angin kencang, kurangi sudut kemiringan
+                analysisMessage += `Angin kencang dengan kecepatan ${windSpeed} m/s terdeteksi. Sudut kemiringan dikurangi sebesar 5 derajat untuk menjaga stabilitas.\n`;
+            } 
+
+            if (temperature > 35) {
+                adjustmentFactor += 2;  // Suhu tinggi, tambahkan sedikit kemiringan
+                analysisMessage += `Suhu tinggi terdeteksi (${temperature}°C). Sudut kemiringan ditambahkan sebesar 2 derajat untuk mengurangi pemanasan panel.\n`;
+            }
+
+            const adjustedTiltAngle = originalTiltAngle + adjustmentFactor;
+            analysisMessage += `Sudut kemiringan akhir setelah penyesuaian adalah ${adjustedTiltAngle.toFixed(2)} derajat.`;
+
+            // Update hasil pada halaman
+            document.getElementById('result').innerHTML += `<br><b>Analisis Cuaca:</b><br>${analysisMessage}`;
+            
+            // Tampilkan visualisasi sudut setelah penyesuaian
+            drawProtractor(adjustedTiltAngle);
+
+            console.log(`Adjustment factor: ${adjustmentFactor} degrees, adjusted tilt angle: ${adjustedTiltAngle.toFixed(2)} degrees`);
+        }
+
+        function calculateSolarElevation(latitude, longitude, date) {
+            const julianDate = (date.getTime() / 86400000) + 2440587.5;
+            const daysSinceEquinox = julianDate - 2451625;
+            const solarDeclination = -23.44 * Math.cos(2 * Math.PI * (daysSinceEquinox + 10) / 365);
+            const hours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+            const hourAngle = 15 * (hours - 12);
+            const latRad = latitude * Math.PI / 180;
+            const declRad = solarDeclination * Math.PI / 180;
+
+            return Math.asin(Math.sin(latRad) * Math.sin(declRad) +
+                             Math.cos(latRad) * Math.cos(declRad) * Math.cos(hourAngle * Math.PI / 180)) * 180 / Math.PI;
+        }
+
+        function calculateAverageMonthlyTiltAngle(latitude, longitude, startDateStr, endDateStr) {
+            const startDate = new Date(startDateStr);
+            const endDate = new Date(endDateStr);
+
+            let totalTiltAngle = 0;
+            let count = 0;
+
+            while (startDate <= endDate) {
+                const currentMonth = startDate.getMonth();
+                const currentYear = startDate.getFullYear();
+                const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const currentDate = new Date(currentYear, currentMonth, day);
+                    if (currentDate >= new Date(startDateStr) && currentDate <= new Date(endDateStr)) {
+                        const solarElevation = calculateSolarElevation(latitude, longitude, currentDate);
+                        const tiltAngle = (90 - solarElevation) / 2;
+                        totalTiltAngle += tiltAngle;
+                        count++;
+                    }
+                }
+
+                startDate.setMonth(currentMonth + 1);
+            }
+
+            return totalTiltAngle / count;
+        }
+
+        function determinePanelOrientation(latitude) {
+            return latitude >= 0 ? 'Utara' : 'Selatan';
+        }
+
+        function drawProtractor(tiltAngle) {
+            const canvas = document.getElementById('protractorCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Gambar proyeksi sudut dengan garis dan label
+            ctx.beginPath();
+            ctx.arc(250, 250, 200, Math.PI, Math.PI + (Math.PI * tiltAngle / 180), false);
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = '#00f';
+            ctx.stroke();
+
+            ctx.font = '16px Arial';
+            ctx.fillText(`Sudut: ${tiltAngle.toFixed(2)}°`, 50, 50);
+        }
+
+        function showMap(latitude, longitude) {
+            if (map) {
+                map.remove();
+            }
+            map = L.map('map').setView([latitude, longitude], 13);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            if (marker) {
+                map.removeLayer(marker);
+            }
+
+            marker = L.marker([latitude, longitude]).addTo(map)
+                .bindPopup('Lokasi Panel Surya').openPopup();
+        }
+
+        function showTiltChart(startDateStr, endDateStr, latitude, longitude) {
+            const startDate = new Date(startDateStr);
+            const endDate = new Date(endDateStr);
+            const dates = [];
+            const tiltAngles = [];
+
+            while (startDate <= endDate) {
+                const solarElevation = calculateSolarElevation(latitude, longitude, startDate);
+                const tiltAngle = (90 - solarElevation) / 2;
+                dates.push(startDate.toISOString().split('T')[0]);
+                tiltAngles.push(tiltAngle);
+
+                startDate.setDate(startDate.getDate() + 1);
+            }
+
+            const ctx = document.getElementById('tiltChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Sudut Kemiringan Harian',
+                        data: tiltAngles,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Tanggal'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Sudut Kemiringan (°)'
+                            },
+                            min: 0,
+                            max: 90
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

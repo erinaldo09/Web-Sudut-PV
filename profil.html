@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil Pembuat</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #2566a8;
+            color: white;
+            padding: 10px 20px;
+        }
+        header img {
+            height: 50px;
+            border-radius: 15%;
+        }
+        header nav a {
+            color: white;
+            margin-left: 30px;
+            text-decoration: none;
+        }
+        .nav-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 16px;
+            color: white;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            text-decoration: none;
+            transition: all 0.2s ease-in-out;
+        }
+        .nav-btn:hover {
+            background-color: #0056b3;
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+        }
+        .nav-btn:active {
+            background-color: #004494;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transform: translateY(0);
+        }
+        .profile-card {
+            text-align: center;
+        }
+        .profile-pic {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <img src="logo.jpeg" alt="Logo"> 
+            <span>Profil Pembuat</span>
+        </div>
+        <nav>
+            <a href="index.html" class="nav-btn">Home</a>
+        </nav>
+    </header>
+    <div class="container">
+        <h1 class="text-center">Profil Pembuat</h1>
+        <div class="profile-card">
+            <img src="foto.jpg" alt="Foto Pembuat" class="profile-pic">
+            <h2>Ananda Erinaldo</h2>
+            <p>Penulis: Ananda Erinaldo</p>
+            <p>Nim: 2020310004</p>
+            <p>Proyek: Perhitungan Sudut Kemiringan Panel Surya</p>
+            <p>Email: 2020310004ananda@itp.ac.id</p>
+            <p>FAKULTAS TEKNIK ELEKTRO</p>
+            <p>INSTITUT TEKNOLOGI PADANG, 2024</p>
+        </div>
+    </div>
+</body>
+</html>
